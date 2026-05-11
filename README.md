@@ -6,9 +6,9 @@ SAST / DAST / SCA 경쟁사 주간 동향을 자동으로 수집하여 이메일
 
 | 카테고리 | 경쟁사 |
 |---|---|
-| **SAST** | Checkmarx, Veracode, Semgrep, SonarQube, Fortify, CodeQL |
-| **DAST** | Invicti(Netsparker), PortSwigger(Burp Suite), Bright Security, OWASP ZAP, Rapid7 |
-| **SCA** | Snyk, Mend.io(WhiteSource), Black Duck(Synopsys), FOSSA, Sonatype, Dependabot |
+| **SAST** | Checkmarx,  Fortify, 트리니티소프트 |
+| **DAST** | AppScan, 나일소프트, Xint |
+| **SCA** | BlackDuck, 래브라도랩스, 레드팬소프트 |
 
 ## 🚀 설정 방법
 

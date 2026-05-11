@@ -1,205 +1,323 @@
 """
-Sparrow Security Intelligence Crawler
-매주 월요일 SAST/DAST/SCA 경쟁사 최신 동향을 크롤링하여 이메일 발송
+Sparrow Security Intelligence Crawler - 한국판
+매주 월요일 SAST/DAST/SCA 경쟁사 한국 동향을 크롤링하여 이메일 발송
 """
 
-import os
-import smtplib
-import feedparser
-import requests
+import os, re, smtplib, time
+import feedparser, requests
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime, timedelta, timezone
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin, quote
 
-# ──────────────────────────────────────────────
-# 경쟁사 RSS / 블로그 / 릴리즈 피드 목록
-# ──────────────────────────────────────────────
-COMPETITORS = {
+DAYS_BACK = 7
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "ko-KR,ko;q=0.9",
+}
+
+# ────────────────────────────────────────────────────────
+# 경쟁사 키워드 (한국 미디어 검색용)
+# ────────────────────────────────────────────────────────
+COMPETITOR_KEYWORDS = {
     "SAST": [
-        {
-            "name": "Checkmarx",
-            "url": "https://checkmarx.com/blog/feed/",
-            "type": "rss",
-            "tag": "SAST"
-        },
-        {
-            "name": "Veracode",
-            "url": "https://www.veracode.com/blog/feed",
-            "type": "rss",
-            "tag": "SAST"
-        },
-        {
-            "name": "Semgrep",
-            "url": "https://semgrep.dev/blog/rss.xml",
-            "type": "rss",
-            "tag": "SAST"
-        },
-        {
-            "name": "SonarQube (Sonar)",
-            "url": "https://www.sonarsource.com/blog/rss.xml",
-            "type": "rss",
-            "tag": "SAST"
-        },
-        {
-            "name": "Fortify (OpenText)",
-            "url": "https://www.microfocus.com/en-us/cyberres/rss",
-            "type": "rss",
-            "tag": "SAST"
-        },
-        {
-            "name": "CodeQL (GitHub)",
-            "url": "https://github.blog/feed/",
-            "type": "rss",
-            "tag": "SAST",
-            "keyword": "CodeQL"
-        },
+        # 외산 (주요 2개 유지)
+        {"name": "Fortify",      "keywords": ["포티파이", "Fortify", "OpenText Fortify"]},
+        {"name": "Checkmarx",    "keywords": ["체크막스", "Checkmarx", "체크마르크스"]},
+        # 국내
+        {"name": "트리니티소프트", "keywords": ["트리니티소프트", "CODE-RAY", "코드레이", "에스에스알", "SSR"]},
     ],
     "DAST": [
-        {
-            "name": "Invicti (Netsparker)",
-            "url": "https://www.invicti.com/blog/feed/",
-            "type": "rss",
-            "tag": "DAST"
-        },
-        {
-            "name": "PortSwigger (Burp Suite)",
-            "url": "https://portswigger.net/blog/rss",
-            "type": "rss",
-            "tag": "DAST"
-        },
-        {
-            "name": "Bright Security (NeuraLegion)",
-            "url": "https://brightsec.com/blog/feed/",
-            "type": "rss",
-            "tag": "DAST"
-        },
-        {
-            "name": "OWASP ZAP",
-            "url": "https://www.zaproxy.org/blog/index.xml",
-            "type": "rss",
-            "tag": "DAST"
-        },
-        {
-            "name": "Rapid7 (AppSpider)",
-            "url": "https://www.rapid7.com/blog/rss.xml/",
-            "type": "rss",
-            "tag": "DAST"
-        },
+        # 외산 (주요 1개 유지)
+        {"name": "AppScan",      "keywords": ["앱스캔", "AppScan", "HCL AppScan"]},
+        # 국내
+        {"name": "나일소프트",    "keywords": ["나일소프트", "SecuGuard", "시큐가드"]},
+        {"name": "Xint (Theori)","keywords": ["Xint", "테오리", "Theori", "엑스인트"]},
     ],
     "SCA": [
-        {
-            "name": "Snyk",
-            "url": "https://snyk.io/blog/feed/",
-            "type": "rss",
-            "tag": "SCA"
-        },
-        {
-            "name": "Mend.io (WhiteSource)",
-            "url": "https://www.mend.io/blog/feed/",
-            "type": "rss",
-            "tag": "SCA"
-        },
-        {
-            "name": "Black Duck (Synopsys)",
-            "url": "https://www.synopsys.com/blogs/software-security/feed/",
-            "type": "rss",
-            "tag": "SCA"
-        },
-        {
-            "name": "FOSSA",
-            "url": "https://fossa.com/blog/feed/",
-            "type": "rss",
-            "tag": "SCA"
-        },
-        {
-            "name": "Sonatype",
-            "url": "https://blog.sonatype.com/rss.xml",
-            "type": "rss",
-            "tag": "SCA"
-        },
-        {
-            "name": "Dependabot (GitHub)",
-            "url": "https://github.blog/feed/",
-            "type": "rss",
-            "tag": "SCA",
-            "keyword": "Dependabot"
-        },
+        # 외산 (주요 1개 유지)
+        {"name": "Black Duck",   "keywords": ["블랙덕", "Black Duck", "BlackDuck"]},
+        # 국내
+        {"name": "래브라도랩스",  "keywords": ["래브라도랩스", "Labrador Labs", "래브라도"]},
+        {"name": "레드팬소프트",  "keywords": ["레드팬소프트", "XSCAN", "엑스스캔", "레드팬"]},
     ],
 }
 
-# 최근 7일치만 수집
-DAYS_BACK = 7
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; SparrowIntelBot/1.0)"}
+# ────────────────────────────────────────────────────────
+# 한국 보안 미디어 RSS
+# ────────────────────────────────────────────────────────
+KOREAN_MEDIA_RSS = [
+    {"name": "보안뉴스",     "url": "https://www.boannews.com/rss/rss.asp"},
+    {"name": "데일리시큐",   "url": "https://www.dailysecu.com/rss/allArticle.xml"},
+    {"name": "아이티데일리", "url": "https://www.itdaily.kr/rss/allArticle.xml"},
+    {"name": "전자신문",     "url": "https://rss.etnews.com/Section902.xml"},
+    {"name": "ZDNet Korea",  "url": "https://www.zdnet.co.kr/rss/news.xml"},
+    {"name": "디지털데일리", "url": "https://www.ddaily.co.kr/rss/rss.html"},
+]
+
+# ────────────────────────────────────────────────────────
+# 경쟁사 공식 채널 (보도자료/뉴스룸)
+# ────────────────────────────────────────────────────────
+COMPETITOR_OFFICIAL = [
+    # SAST
+    {
+        "name": "Checkmarx 보도자료",
+        "url": "https://checkmarx.com/press-releases/",
+        "tag": "SAST",
+        "company": "Checkmarx",
+    },
+    {
+        "name": "트리니티소프트 공지",
+        "url": "https://www.trinitysoft.co.kr/board/notice",
+        "tag": "SAST",
+        "company": "트리니티소프트",
+    },
+    # DAST
+    {
+        "name": "나일소프트 뉴스",
+        "url": "https://www.nilesoft.co.kr/board/news",
+        "tag": "DAST",
+        "company": "나일소프트",
+    },
+    {
+        "name": "Theori (Xint) 블로그",
+        "url": "https://theori.io/blog",
+        "tag": "DAST",
+        "company": "Xint (Theori)",
+    },
+    # SCA
+    {
+        "name": "Black Duck 뉴스",
+        "url": "https://www.blackduck.com/news/press-releases.html",
+        "tag": "SCA",
+        "company": "Black Duck",
+    },
+    {
+        "name": "래브라도랩스 블로그",
+        "url": "https://www.labrador-labs.io/blog",
+        "tag": "SCA",
+        "company": "래브라도랩스",
+    },
+    {
+        "name": "레드팬소프트 뉴스",
+        "url": "https://www.redpensoft.com/news",
+        "tag": "SCA",
+        "company": "레드팬소프트",
+    },
+]
+
+# 회사별 메타 정보 (이메일 표시용)
+COMPANY_META = {
+    "Fortify":        {"type": "외산", "badge": "🌐"},
+    "Checkmarx":      {"type": "외산", "badge": "🌐"},
+    "트리니티소프트":  {"type": "국내", "badge": "🇰🇷"},
+    "AppScan":        {"type": "외산", "badge": "🌐"},
+    "나일소프트":      {"type": "국내", "badge": "🇰🇷"},
+    "Xint (Theori)":  {"type": "국내", "badge": "🇰🇷"},
+    "Black Duck":     {"type": "외산", "badge": "🌐"},
+    "래브라도랩스":    {"type": "국내", "badge": "🇰🇷"},
+    "레드팬소프트":    {"type": "국내", "badge": "🇰🇷"},
+}
 
 
-def fetch_rss_items(source: dict, cutoff: datetime) -> list[dict]:
-    """RSS 피드에서 최근 항목 수집"""
+# ────────────────────────────────────────────────────────
+# 유틸
+# ────────────────────────────────────────────────────────
+
+def cutoff_dt():
+    return datetime.now(timezone.utc) - timedelta(days=DAYS_BACK)
+
+def safe_get(url, timeout=12):
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=timeout)
+        r.raise_for_status()
+        r.encoding = r.apparent_encoding or "utf-8"
+        return r.text
+    except Exception as e:
+        print(f"  [WARN] GET 실패 {url[:60]}: {e}")
+        return None
+
+def parse_date(text: str):
+    text = re.sub(r"\s+", " ", text.strip())
+    for pat in [
+        r"(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})",
+        r"(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일",
+    ]:
+        m = re.search(pat, text)
+        if m:
+            try:
+                return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
+            except Exception:
+                pass
+    return None
+
+
+# ────────────────────────────────────────────────────────
+# 크롤러 1: RSS + 경쟁사 키워드 필터
+# ────────────────────────────────────────────────────────
+
+def build_flat_keyword_map():
+    """{ 'keyword_lower': (category, company_name) }"""
+    kmap = {}
+    for cat, companies in COMPETITOR_KEYWORDS.items():
+        for comp in companies:
+            for kw in comp["keywords"]:
+                kmap[kw.lower()] = (cat, comp["name"])
+    return kmap
+
+def crawl_rss_media(media: dict, kmap: dict) -> list[dict]:
     items = []
     try:
-        feed = feedparser.parse(source["url"])
-        keyword = source.get("keyword", "").lower()
-
+        feed = feedparser.parse(media["url"])
         for entry in feed.entries:
-            # 날짜 파싱
-            published = None
+            pub = None
             if hasattr(entry, "published_parsed") and entry.published_parsed:
-                published = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
-            elif hasattr(entry, "updated_parsed") and entry.updated_parsed:
-                published = datetime(*entry.updated_parsed[:6], tzinfo=timezone.utc)
-
-            if published and published < cutoff:
+                pub = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+            if pub and pub < cutoff_dt():
                 continue
 
-            title = entry.get("title", "No title")
-            link = entry.get("link", "#")
-            summary = entry.get("summary", "")
+            title = entry.get("title", "")
+            summary_raw = entry.get("summary", "")
+            summary = BeautifulSoup(summary_raw, "lxml").get_text()[:200]
+            combined = (title + " " + summary).lower()
 
-            # BeautifulSoup으로 HTML 태그 제거
-            clean_summary = BeautifulSoup(summary, "lxml").get_text()[:200]
+            # 어떤 회사/카테고리에 매칭되는지
+            matched_companies = {}
+            for kw, (cat, company) in kmap.items():
+                if kw in combined:
+                    matched_companies[company] = cat
 
-            # 키워드 필터 (e.g. GitHub 블로그에서 CodeQL 관련만)
-            if keyword and keyword not in title.lower() and keyword not in clean_summary.lower():
+            if not matched_companies:
                 continue
 
-            items.append({
-                "title": title,
-                "link": link,
-                "summary": clean_summary,
-                "published": published.strftime("%Y-%m-%d") if published else "날짜 미상",
-                "source": source["name"],
-                "tag": source["tag"],
-            })
+            for company, cat in matched_companies.items():
+                items.append({
+                    "title": title,
+                    "link": entry.get("link", "#"),
+                    "summary": summary,
+                    "published": pub.strftime("%Y-%m-%d") if pub else "날짜 미상",
+                    "source": media["name"],
+                    "company": company,
+                    "category": cat,
+                })
     except Exception as e:
-        print(f"[WARN] {source['name']} 피드 수집 실패: {e}")
-
+        print(f"  [WARN] RSS 실패 {media['name']}: {e}")
     return items
 
 
-def collect_all_items() -> dict:
-    """모든 경쟁사 피드 수집"""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=DAYS_BACK)
-    result = {category: [] for category in COMPETITORS}
+# ────────────────────────────────────────────────────────
+# 크롤러 2: 경쟁사 공식 채널 파싱
+# ────────────────────────────────────────────────────────
 
-    for category, sources in COMPETITORS.items():
-        for source in sources:
-            items = fetch_rss_items(source, cutoff)
-            result[category].extend(items)
-            print(f"[OK] {source['name']}: {len(items)}개 항목")
+def crawl_official_page(source: dict) -> list[dict]:
+    items = []
+    html = safe_get(source["url"])
+    if not html:
+        return items
+    soup = BeautifulSoup(html, "lxml")
 
+    seen_links = set()
+    for a in soup.find_all("a", href=True)[:80]:
+        title = a.get_text(strip=True)
+        if len(title) < 10 or len(title) > 200:
+            continue
+        href = a["href"]
+        # 뉴스/블로그/보도자료 링크 패턴
+        if not any(p in href.lower() for p in ["press", "news", "blog", "release", "notice", "article", "post"]):
+            continue
+        link = urljoin(source["url"], href)
+        if link in seen_links:
+            continue
+        seen_links.add(link)
+
+        pub = None
+        node = a.parent
+        for _ in range(4):
+            if node:
+                t = parse_date(node.get_text())
+                if t:
+                    pub = t
+                    break
+                node = node.parent
+        if pub and pub < cutoff_dt():
+            continue
+
+        items.append({
+            "title": title,
+            "link": link,
+            "summary": "",
+            "published": pub.strftime("%Y-%m-%d") if pub else "날짜 미상",
+            "source": source["name"],
+            "company": source["company"],
+            "category": source["tag"],
+        })
+    return items[:15]
+
+
+# ────────────────────────────────────────────────────────
+# 전체 수집
+# ────────────────────────────────────────────────────────
+
+def collect_all() -> dict:
+    # 결과: { "SAST": { "Checkmarx": [...], "트리니티소프트": [...] }, ... }
+    result = {
+        cat: {comp["name"]: [] for comp in companies}
+        for cat, companies in COMPETITOR_KEYWORDS.items()
+    }
+
+    kmap = build_flat_keyword_map()
+
+    # ── RSS 미디어 ──
+    print("\n[RSS 미디어] 수집 중...")
+    for media in KOREAN_MEDIA_RSS:
+        items = crawl_rss_media(media, kmap)
+        for item in items:
+            cat = item["category"]
+            company = item["company"]
+            if cat in result and company in result[cat]:
+                result[cat][company].append(item)
+        print(f"  {media['name']}: {len(items)}건 매칭")
+        time.sleep(0.3)
+
+    # ── 공식 채널 ──
+    print("\n[공식 채널] 수집 중...")
+    for source in COMPETITOR_OFFICIAL:
+        items = crawl_official_page(source)
+        cat = source["tag"]
+        company = source["company"]
+        if cat in result and company in result[cat]:
+            result[cat][company].extend(items)
+        print(f"  {source['name']}: {len(items)}건")
+        time.sleep(0.4)
+
+    # ── 중복 제거 & 날짜 정렬 ──
+    for cat in result:
+        for company in result[cat]:
+            seen = set()
+            deduped = []
+            for item in result[cat][company]:
+                if item["link"] not in seen:
+                    seen.add(item["link"])
+                    deduped.append(item)
+            deduped.sort(key=lambda x: x["published"], reverse=True)
+            result[cat][company] = deduped
+
+    total = sum(len(items) for cat in result.values() for items in cat.values())
+    print(f"\n✅ 총 {total}건 수집 완료")
     return result
 
 
-# ──────────────────────────────────────────────
-# HTML 이메일 템플릿
-# ──────────────────────────────────────────────
-CATEGORY_COLORS = {
-    "SAST": "#3B82F6",
-    "DAST": "#10B981",
-    "SCA":  "#F59E0B",
-}
+# ────────────────────────────────────────────────────────
+# HTML 이메일 빌더
+# ────────────────────────────────────────────────────────
 
-CATEGORY_DESC = {
+CATEGORY_COLORS = {"SAST": "#3B82F6", "DAST": "#10B981", "SCA": "#F59E0B"}
+CATEGORY_DESC   = {
     "SAST": "정적 애플리케이션 보안 테스트",
     "DAST": "동적 애플리케이션 보안 테스트",
     "SCA":  "소프트웨어 구성 분석",
@@ -207,142 +325,148 @@ CATEGORY_DESC = {
 
 
 def build_html(data: dict) -> str:
-    today = datetime.now().strftime("%Y년 %m월 %d일")
-    week_range = (datetime.now() - timedelta(days=7)).strftime("%m/%d") + " ~ " + datetime.now().strftime("%m/%d")
-
-    total = sum(len(v) for v in data.values())
+    today      = datetime.now().strftime("%Y년 %m월 %d일")
+    week_start = (datetime.now() - timedelta(days=7)).strftime("%m/%d")
+    week_end   = datetime.now().strftime("%m/%d")
+    total      = sum(len(items) for cat in data.values() for items in cat.values())
 
     categories_html = ""
-    for category, items in data.items():
-        color = CATEGORY_COLORS[category]
-        desc = CATEGORY_DESC[category]
+    for cat, companies in data.items():
+        color     = CATEGORY_COLORS[cat]
+        cat_total = sum(len(v) for v in companies.values())
 
-        if not items:
-            items_html = f"""
-            <div style="text-align:center;padding:32px;color:#9CA3AF;">
-              이번 주 새로운 소식이 없습니다.
+        company_blocks = ""
+        for company, items in companies.items():
+            meta    = COMPANY_META.get(company, {"type": "", "badge": ""})
+            badge   = meta["badge"]
+            ctype   = meta["type"]
+            c_color = "#6366F1" if ctype == "국내" else "#64748B"
+
+            if not items:
+                card_html = '<p style="font-size:12px;color:#9CA3AF;margin:8px 0 0;">이번 주 새로운 소식이 없습니다.</p>'
+            else:
+                card_html = ""
+                for item in items[:5]:
+                    summary_html = (
+                        f'<p style="font-size:12px;color:#6B7280;margin:4px 0 0;line-height:1.5;">'
+                        f'{item["summary"][:130]}…</p>'
+                    ) if item.get("summary") else ""
+                    card_html += f"""
+                    <div style="border-left:3px solid {color};padding:10px 12px;margin-top:10px;background:#F8FAFC;border-radius:0 6px 6px 0;">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                        <span style="font-size:11px;color:#94A3B8;">{item['source']}</span>
+                        <span style="font-size:11px;color:#94A3B8;">{item['published']}</span>
+                      </div>
+                      <a href="{item['link']}" style="font-size:13px;font-weight:600;color:#1E293B;text-decoration:none;line-height:1.45;">{item['title']}</a>
+                      {summary_html}
+                    </div>"""
+
+            company_blocks += f"""
+            <div style="margin-bottom:20px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                <span style="font-size:15px;">{badge}</span>
+                <span style="font-size:14px;font-weight:700;color:#1E293B;">{company}</span>
+                <span style="font-size:10px;font-weight:600;color:{c_color};background:{c_color}18;padding:1px 7px;border-radius:999px;">{ctype}</span>
+                <span style="font-size:11px;color:#94A3B8;margin-left:auto;">{len(items)}건</span>
+              </div>
+              {card_html}
             </div>"""
-        else:
-            cards = ""
-            for item in items[:15]:  # 카테고리당 최대 15개
-                cards += f"""
-                <div style="border:1px solid #E5E7EB;border-radius:8px;padding:16px;margin-bottom:12px;background:#FAFAFA;">
-                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                    <span style="font-size:11px;font-weight:600;color:{color};background:{color}18;padding:2px 8px;border-radius:999px;">{item['source']}</span>
-                    <span style="font-size:11px;color:#9CA3AF;">{item['published']}</span>
-                  </div>
-                  <a href="{item['link']}" style="font-size:14px;font-weight:600;color:#111827;text-decoration:none;line-height:1.4;display:block;margin-bottom:6px;">{item['title']}</a>
-                  <p style="font-size:13px;color:#6B7280;margin:0;line-height:1.5;">{item['summary']}...</p>
-                </div>"""
-            items_html = cards
 
         categories_html += f"""
-        <div style="margin-bottom:40px;">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid {color};">
-            <div style="width:4px;height:28px;background:{color};border-radius:2px;"></div>
+        <div style="margin-bottom:36px;">
+          <div style="display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:2px solid {color};margin-bottom:18px;">
+            <div style="width:4px;height:24px;background:{color};border-radius:2px;flex-shrink:0;"></div>
             <div>
-              <h2 style="margin:0;font-size:18px;font-weight:700;color:#111827;">{category}</h2>
-              <p style="margin:0;font-size:12px;color:#9CA3AF;">{desc} · {len(items)}개 소식</p>
+              <h2 style="margin:0;font-size:16px;font-weight:700;color:#111827;">{cat}</h2>
+              <p style="margin:0;font-size:11px;color:#9CA3AF;">{CATEGORY_DESC[cat]} · {cat_total}건</p>
             </div>
           </div>
-          {items_html}
+          {company_blocks}
         </div>"""
 
-    return f"""
-<!DOCTYPE html>
-<html lang="ko">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Sparrow Security Intelligence</title></head>
-<body style="margin:0;padding:0;background:#F3F4F6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <div style="max-width:680px;margin:0 auto;padding:24px 16px;">
+    # 요약 카드
+    summary_cells = "".join(f"""
+      <td style="width:33%;padding:4px;">
+        <div style="background:#FFF;border-radius:8px;padding:14px;text-align:center;border-top:3px solid {CATEGORY_COLORS[c]};">
+          <div style="font-size:22px;font-weight:700;color:{CATEGORY_COLORS[c]};">{sum(len(v) for v in data[c].values())}</div>
+          <div style="font-size:11px;color:#6B7280;font-weight:600;margin-top:2px;">{c}</div>
+        </div>
+      </td>""" for c in ["SAST", "DAST", "SCA"])
 
-    <!-- Header -->
-    <div style="background:linear-gradient(135deg,#0F172A 0%,#1E3A5F 100%);border-radius:12px;padding:32px;margin-bottom:24px;text-align:center;">
-      <div style="font-size:28px;margin-bottom:8px;">🦅</div>
-      <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;color:#FFFFFF;letter-spacing:-0.3px;">Sparrow Security Intelligence</h1>
-      <p style="margin:0;font-size:13px;color:#93C5FD;">SAST · DAST · SCA 경쟁사 주간 동향</p>
-      <div style="margin-top:16px;display:inline-block;background:rgba(255,255,255,0.1);border-radius:999px;padding:6px 16px;">
-        <span style="font-size:12px;color:#E2E8F0;">📅 {today} · {week_range} 수집 · 총 {total}건</span>
-      </div>
-    </div>
+    return f"""<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#F1F5F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<div style="max-width:660px;margin:0 auto;padding:20px 14px;">
 
-    <!-- Summary Cards -->
-    <div style="display:table;width:100%;margin-bottom:24px;border-collapse:separate;border-spacing:0;">
-      <div style="display:table-row;">
-        {"".join(f'''
-        <div style="display:table-cell;width:33%;padding:4px;">
-          <div style="background:#FFFFFF;border-radius:8px;padding:16px;text-align:center;border-top:3px solid {CATEGORY_COLORS[cat]};">
-            <div style="font-size:20px;font-weight:700;color:{CATEGORY_COLORS[cat]};">{len(data[cat])}</div>
-            <div style="font-size:11px;color:#6B7280;font-weight:600;">{cat}</div>
-          </div>
-        </div>''' for cat in ["SAST","DAST","SCA"])}
-      </div>
-    </div>
-
-    <!-- Main Content -->
-    <div style="background:#FFFFFF;border-radius:12px;padding:28px;">
-      {categories_html}
-    </div>
-
-    <!-- Footer -->
-    <div style="text-align:center;padding:20px;color:#9CA3AF;font-size:11px;">
-      <p style="margin:0;">Sparrow Intelligence Bot · 매주 월요일 오전 9시 자동 발송</p>
-      <p style="margin:4px 0 0;">GitHub Actions로 구동 · 데이터 수집 기간: {week_range}</p>
-    </div>
+  <div style="background:linear-gradient(135deg,#0F172A 0%,#1E3A5F 100%);border-radius:12px;padding:28px 24px;margin-bottom:16px;text-align:center;">
+    <div style="font-size:26px;margin-bottom:8px;">🦅</div>
+    <h1 style="margin:0 0 4px;font-size:19px;font-weight:700;color:#FFF;">Sparrow Security Intelligence</h1>
+    <p style="margin:0 0 12px;font-size:12px;color:#93C5FD;">SAST · DAST · SCA 경쟁사 주간 동향 (🌐 외산 3 + 🇰🇷 국내 6)</p>
+    <span style="display:inline-block;background:rgba(255,255,255,0.12);border-radius:999px;padding:5px 14px;font-size:11px;color:#E2E8F0;">
+      📅 {today}&nbsp;&nbsp;|&nbsp;&nbsp;{week_start} ~ {week_end}&nbsp;&nbsp;|&nbsp;&nbsp;총 {total}건
+    </span>
   </div>
-</body>
-</html>"""
 
+  <table style="width:100%;border-collapse:separate;border-spacing:0;margin-bottom:16px;">
+    <tr>{summary_cells}</tr>
+  </table>
+
+  <div style="background:#FFF;border-radius:12px;padding:24px 20px;">
+    <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:10px 14px;margin-bottom:22px;font-size:12px;color:#1E40AF;">
+      📰 <strong>수집 출처</strong>: 보안뉴스 · 데일리시큐 · 아이티데일리 · 전자신문 · ZDNet Korea · 디지털데일리 + 각사 공식 채널
+    </div>
+    {categories_html}
+  </div>
+
+  <div style="text-align:center;padding:14px;color:#94A3B8;font-size:11px;">
+    Sparrow Intelligence Bot · 매주 월요일 오전 9시 (KST) 자동 발송
+  </div>
+</div>
+</body></html>"""
+
+
+# ────────────────────────────────────────────────────────
+# 이메일 발송
+# ────────────────────────────────────────────────────────
 
 def send_email(html_body: str):
-    """이메일 발송"""
-    smtp_host = os.environ["SMTP_HOST"]
-    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-    smtp_user = os.environ["SMTP_USER"]
-    smtp_pass = os.environ["SMTP_PASS"]
+    smtp_host  = os.environ["SMTP_HOST"]
+    smtp_port  = int(os.environ.get("SMTP_PORT") or "587")
+    smtp_user  = os.environ["SMTP_USER"]
+    smtp_pass  = os.environ["SMTP_PASS"]
     email_from = os.environ["EMAIL_FROM"]
-    email_to = os.environ["EMAIL_TO"]
+    email_to   = os.environ["EMAIL_TO"]
 
-    today = datetime.now().strftime("%Y.%m.%d")
-    subject = f"[Sparrow Intel] SAST/DAST/SCA 경쟁사 주간 동향 {today}"
-
+    subject = f"[Sparrow Intel] SAST/DAST/SCA 경쟁사 주간 동향 {datetime.now().strftime('%Y.%m.%d')}"
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = email_from
-    msg["To"] = email_to
+    msg["From"]    = email_from
+    msg["To"]      = email_to
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-    with smtplib.SMTP(smtp_host, smtp_port) as server:
-        server.ehlo()
-        server.starttls()
-        server.login(smtp_user, smtp_pass)
-        server.sendmail(email_from, email_to.split(","), msg.as_string())
+    with smtplib.SMTP(smtp_host, smtp_port) as s:
+        s.ehlo(); s.starttls()
+        s.login(smtp_user, smtp_pass)
+        s.sendmail(email_from, email_to.split(","), msg.as_string())
+    print(f"[OK] 이메일 발송 → {email_to}")
 
-    print(f"[OK] 이메일 발송 완료 → {email_to}")
 
+# ────────────────────────────────────────────────────────
+# 메인
+# ────────────────────────────────────────────────────────
 
 def main():
-    print("=" * 50)
-    print("Sparrow Security Intelligence Crawler 시작")
-    print("=" * 50)
-
-    # 1. 크롤링
-    data = collect_all_items()
-
-    # 2. HTML 리포트 생성
+    print("=" * 55)
+    print("Sparrow Security Intelligence Crawler (한국판)")
+    print("=" * 55)
+    data = collect_all()
     html = build_html(data)
-
-    # 3. 파일 저장 (GitHub Actions artifact용)
     with open("report.html", "w", encoding="utf-8") as f:
         f.write(html)
-    print("[OK] report.html 저장 완료")
-
-    # 4. 이메일 발송
+    print("\n[OK] report.html 저장 완료")
     send_email(html)
-
-    total = sum(len(v) for v in data.values())
-    print(f"\n✅ 완료! 총 {total}개 항목 수집 및 발송")
-
 
 if __name__ == "__main__":
     main()
