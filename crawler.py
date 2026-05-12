@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, quote
 
-DAYS_BACK = 7
+DAYS_BACK = 30   # 최근 30일치 수집
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -64,51 +64,15 @@ KOREAN_MEDIA_RSS = [
 # 경쟁사 공식 채널 (보도자료/뉴스룸)
 # ────────────────────────────────────────────────────────
 COMPETITOR_OFFICIAL = [
-    # SAST
-    {
-        "name": "Checkmarx 보도자료",
-        "url": "https://checkmarx.com/press-releases/",
-        "tag": "SAST",
-        "company": "Checkmarx",
-    },
-    {
-        "name": "트리니티소프트 공지",
-        "url": "https://www.trinitysoft.co.kr/board/notice",
-        "tag": "SAST",
-        "company": "트리니티소프트",
-    },
-    # DAST
-    {
-        "name": "나일소프트 뉴스",
-        "url": "https://www.nilesoft.co.kr/board/news",
-        "tag": "DAST",
-        "company": "나일소프트",
-    },
-    {
-        "name": "Theori (Xint) 블로그",
-        "url": "https://theori.io/blog",
-        "tag": "DAST",
-        "company": "Xint (Theori)",
-    },
-    # SCA
-    {
-        "name": "Black Duck 뉴스",
-        "url": "https://www.blackduck.com/news/press-releases.html",
-        "tag": "SCA",
-        "company": "Black Duck",
-    },
-    {
-        "name": "래브라도랩스 블로그",
-        "url": "https://www.labrador-labs.io/blog",
-        "tag": "SCA",
-        "company": "래브라도랩스",
-    },
-    {
-        "name": "레드팬소프트 뉴스",
-        "url": "https://www.redpensoft.com/news",
-        "tag": "SCA",
-        "company": "레드팬소프트",
-    },
+    # ── 국내 회사 공식 채널 ──
+    {"name": "트리니티소프트 공지",   "url": "https://www.trinitysoft.co.kr/board/notice",     "tag": "SAST", "company": "트리니티소프트"},
+    {"name": "나일소프트 뉴스",       "url": "https://www.nilesoft.co.kr/board/news",          "tag": "DAST", "company": "나일소프트"},
+    {"name": "Theori 블로그",         "url": "https://theori.io/ko/blog",                      "tag": "DAST", "company": "Xint (Theori)"},
+    {"name": "래브라도랩스 블로그",   "url": "https://www.labrador-labs.io/blog",              "tag": "SCA",  "company": "래브라도랩스"},
+    {"name": "레드팬소프트 뉴스",     "url": "https://www.redpensoft.com/news",                "tag": "SCA",  "company": "레드팬소프트"},
+    # ── 외산 국내 파트너 채널 (한국어 기사만 생성) ──
+    {"name": "소프트와이드시큐리티",  "url": "https://www.softwidesecu.com/board/news",        "tag": "DAST", "company": "AppScan"},
+    {"name": "KMS테크놀로지",         "url": "https://www.kms-technology.com/blog",            "tag": "SCA",  "company": "Black Duck"},
 ]
 
 # 회사별 메타 정보 (이메일 표시용)
@@ -170,6 +134,12 @@ def build_flat_keyword_map():
                 kmap[kw.lower()] = (cat, comp["name"])
     return kmap
 
+def is_korean_article(title: str, summary: str) -> bool:
+    """제목 또는 요약에 한글이 일정 비율 이상 포함되어 있으면 국내 기사로 판단"""
+    text = title + " " + summary
+    korean_chars = len(re.findall(r"[가-힣]", text))
+    return korean_chars >= 5  # 한글 5자 이상이면 한국어 기사
+
 def crawl_rss_media(media: dict, kmap: dict) -> list[dict]:
     items = []
     try:
@@ -184,6 +154,11 @@ def crawl_rss_media(media: dict, kmap: dict) -> list[dict]:
             title = entry.get("title", "")
             summary_raw = entry.get("summary", "")
             summary = BeautifulSoup(summary_raw, "lxml").get_text()[:200]
+
+            # ★ 한국어 기사 필터: 한글이 없으면 제외
+            if not is_korean_article(title, summary):
+                continue
+
             combined = (title + " " + summary).lower()
 
             # 어떤 회사/카테고리에 매칭되는지
@@ -245,6 +220,10 @@ def crawl_official_page(source: dict) -> list[dict]:
                     break
                 node = node.parent
         if pub and pub < cutoff_dt():
+            continue
+
+        # ★ 국내 공식채널도 한글 제목 기사만 수집
+        if not is_korean_article(title, ""):
             continue
 
         items.append({
