@@ -19,7 +19,7 @@ from urllib.parse import quote
 # 설정
 # ────────────────────────────────────────────────────────
 DAYS_BACK    = 30
-GEMINI_MODEL = "gemini-1.5-flash-latest"   # 무료 티어 지원
+GEMINI_MODEL = "gemini-2.5-flash"   # 무료 티어 지원
 GEMINI_URL   = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 HEADERS = {
