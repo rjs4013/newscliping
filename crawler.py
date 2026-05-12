@@ -181,7 +181,8 @@ def build_insight_prompt(cat: str, articles: list[dict]) -> str:
         f"1. 이달의 핵심 흐름 (2~3줄): 시장에서 무슨 일이 일어나고 있는지\n"
         f"2. 경쟁사 주요 움직임 (bullet 2~3개): 경쟁사가 왜 이런 행보를 보이는지 해석 포함\n"
         f"3. 스패로우 영업 활용 포인트 (bullet 2~3개): 위 상황을 어떤 고객에게 어떻게 연결할지\n"
-        f"각 항목은 간결하게, 전체 300자 내외로 작성하세요."
+        f"각 항목은 간결하게, 전체 300자 내외로 작성하세요.\n"
+        f"마크다운(**굵게**, *기울임* 등) 없이 일반 텍스트로만 작성하세요."
     )
 
 
@@ -254,8 +255,23 @@ def article_row(item: dict) -> str:
     </tr>"""
 
 
+def md_to_html(text: str) -> str:
+    """마크다운 인라인 요소 → HTML 변환"""
+    # **굵게** → <strong>
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+    # *기울임* → <em>
+    text = re.sub(r"\*(.+?)\*", r"<em>\1</em>", text)
+    # ## 헤더 제거 (텍스트만 남김)
+    text = re.sub(r"^#{1,3}\s+", "", text)
+    return text
+
 def format_insight_html(insight_text: str) -> str:
-    """Gemini 텍스트를 HTML로 변환"""
+    """Gemini 텍스트를 HTML로 변환
+    - 번호 항목 (1. 2. 3.) → 소제목
+    - **전체가 bold** 인 줄 → 소제목 (Gemini가 번호 없이 bold 헤더 쓸 때)
+    - bullet (- •) → 들여쓰기 항목
+    - 나머지 → 본문
+    """
     if not insight_text:
         return ""
     lines = insight_text.strip().split("\n")
@@ -263,20 +279,31 @@ def format_insight_html(insight_text: str) -> str:
     for line in lines:
         line = line.strip()
         if not line:
+            html_lines.append('<div style="height:4px;"></div>')
             continue
-        if re.match(r"^[1-9]\.", line):
-            # 번호 항목 → 소제목
+
+        is_numbered = bool(re.match(r"^[1-9]\.", line))
+        is_bullet   = line.startswith("-") or line.startswith("•")
+        # **전체가 bold** 패턴: 줄 전체가 **...** 이거나 **...**로 시작
+        is_bold_header = bool(re.match(r"^\*\*.+\*\*", line))
+
+        line_html = md_to_html(line)
+
+        if is_numbered or is_bold_header:
             html_lines.append(
-                f'<div style="font-size:12px;font-weight:700;color:#1E40AF;margin:8px 0 3px;">{line}</div>'
+                f'<div style="font-size:12px;font-weight:700;color:#1E40AF;'
+                f'margin:10px 0 4px;">{line_html}</div>'
             )
-        elif line.startswith("-") or line.startswith("•"):
-            body = line.lstrip("-•").strip()
+        elif is_bullet:
+            body = md_to_html(re.sub(r"^[-•]\s*", "", line))
             html_lines.append(
-                f'<div style="font-size:12px;color:#374151;padding-left:12px;margin-bottom:3px;line-height:1.5;">· {body}</div>'
+                f'<div style="font-size:12px;color:#374151;padding-left:10px;'
+                f'margin-bottom:4px;line-height:1.6;">· {body}</div>'
             )
         else:
             html_lines.append(
-                f'<div style="font-size:12px;color:#374151;margin-bottom:3px;line-height:1.5;">{line}</div>'
+                f'<div style="font-size:12px;color:#374151;'
+                f'margin-bottom:4px;line-height:1.6;">{line_html}</div>'
             )
     return "\n".join(html_lines)
 
