@@ -197,7 +197,7 @@ def get_category_insight(cat: str, articles: list[dict], api_key: str) -> str:
                 headers={"Content-Type": "application/json"},
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1500},
+                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 8192},
                 },
                 timeout=30,
             )
