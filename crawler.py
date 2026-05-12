@@ -181,7 +181,7 @@ def build_insight_prompt(cat: str, articles: list[dict]) -> str:
         f"1. 이달의 핵심 흐름 (2~3줄): 시장에서 무슨 일이 일어나고 있는지\n"
         f"2. 경쟁사 주요 움직임 (bullet 2~3개): 경쟁사가 왜 이런 행보를 보이는지 해석 포함\n"
         f"3. 스패로우 영업 활용 포인트 (bullet 2~3개): 위 상황을 어떤 고객에게 어떻게 연결할지\n"
-        f"각 항목은 간결하게, 전체 300자 내외로 작성하세요.\n"
+        f"각 항목은 완성된 문장으로 끊기지 않게 작성하세요.\n"
         f"마크다운(**굵게**, *기울임* 등) 없이 일반 텍스트로만 작성하세요."
     )
 
@@ -197,7 +197,7 @@ def get_category_insight(cat: str, articles: list[dict], api_key: str) -> str:
                 headers={"Content-Type": "application/json"},
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 600},
+                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1500},
                 },
                 timeout=30,
             )
