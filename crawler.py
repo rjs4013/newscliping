@@ -155,27 +155,30 @@ def collect_articles() -> list[dict]:
 # 2단계: Gemini Flash로 영업 관점 분석
 # ────────────────────────────────────────────────────────
 
-ANALYSIS_PROMPT = """당신은 소프트웨어 보안 솔루션 회사(스패로우)의 영업/마케팅 분석가입니다.
-스패로우는 SAST(정적분석), DAST(동적분석), SCA(오픈소스 분석) 제품을 국내에 판매합니다.
-
-아래 기사를 읽고 JSON만 반환하세요 (마크다운 코드블록 없이 순수 JSON만):
-
-{
-  "category_tags": ["SAST|DAST|SCA|SBOM|공급망보안|DevSecOps|시큐어코딩|금융보안|공공보안 중 해당하는 것들"],
-  "industry_tags": ["금융|공공|제조|의료|IT서비스|전체 중 해당하는 것들"],
-  "competitor": "언급된 경쟁사명 또는 null",
-  "competitor_move": "경쟁사 움직임 한 줄 요약 (없으면 null)",
-  "sales_point": "영업 활용 포인트 1~2줄 (스패로우 관점에서 어떤 기회/위협인지)",
-  "urgency": "높음|보통|낮음"
-}
-
-기사 제목: {title}
-기사 내용: {summary}
-"""
+def build_prompt(title: str, summary: str) -> str:
+    """프롬프트 생성 — JSON 중괄호를 f-string/format과 분리"""
+    json_schema = (
+        '{{\n'
+        '  "category_tags": ["SAST, DAST, SCA, SBOM, 공급망보안, DevSecOps, 시큐어코딩, 금융보안, 공공보안 중 해당"],\n'
+        '  "industry_tags": ["금융, 공공, 제조, 의료, IT서비스, 전체 중 해당"],\n'
+        '  "competitor": "언급된 경쟁사명 또는 null",\n'
+        '  "competitor_move": "경쟁사 움직임 한 줄 요약 (없으면 null)",\n'
+        '  "sales_point": "영업 활용 포인트 1~2줄 (스패로우 관점 기회/위협)",\n'
+        '  "urgency": "높음 또는 보통 또는 낮음"\n'
+        '}}'
+    )
+    return (
+        "당신은 소프트웨어 보안 솔루션 회사(스패로우)의 영업/마케팅 분석가입니다.\n"
+        "스패로우는 SAST(정적분석), DAST(동적분석), SCA(오픈소스 분석) 제품을 국내에 판매합니다.\n\n"
+        "아래 기사를 읽고 JSON만 반환하세요 (마크다운 코드블록 없이 순수 JSON만):\n\n"
+        f"{json_schema}\n\n"
+        f"기사 제목: {title}\n"
+        f"기사 내용: {summary}"
+    )
 
 def analyze_with_gemini(article: dict, api_key: str) -> dict:
     """Gemini Flash로 단일 기사 분석"""
-    prompt = ANALYSIS_PROMPT.format(
+    prompt = build_prompt(
         title   = article["title"],
         summary = article["summary"] or article["title"],
     )
