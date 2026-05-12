@@ -1,6 +1,6 @@
 """
 Sparrow Security Intelligence Crawler - 한국판
-매주 월요일 SAST/DAST/SCA 경쟁사 한국 동향을 크롤링하여 이메일 발송
+매월 SAST/DAST/SCA 경쟁사 한국 동향을 크롤링하여 이메일 발송
 """
 
 import os, re, smtplib, time
@@ -26,25 +26,19 @@ HEADERS = {
 # ────────────────────────────────────────────────────────
 COMPETITOR_KEYWORDS = {
     "SAST": [
-        # 외산 (주요 2개 유지)
-        {"name": "Fortify",      "keywords": ["포티파이", "Fortify", "OpenText Fortify"]},
-        {"name": "Checkmarx",    "keywords": ["체크막스", "Checkmarx", "체크마르크스"]},
-        # 국내
-        {"name": "트리니티소프트", "keywords": ["트리니티소프트", "CODE-RAY", "코드레이", "에스에스알", "SSR"]},
+        {"name": "Fortify",   "keywords": ["포티파이", "Fortify", "OpenText Fortify"]},
+        {"name": "Checkmarx", "keywords": ["체크막스", "Checkmarx", "체크마르크스"]},
+        {"name": "SSR",       "keywords": ["에스에스알", "SSR", "ssrinc", "CODE-RAY", "코드레이"]},
     ],
     "DAST": [
-        # 외산 (주요 1개 유지)
-        {"name": "AppScan",      "keywords": ["앱스캔", "AppScan", "HCL AppScan"]},
-        # 국내
-        {"name": "나일소프트",    "keywords": ["나일소프트", "SecuGuard", "시큐가드"]},
-        {"name": "Xint (Theori)","keywords": ["Xint", "테오리", "Theori", "엑스인트"]},
+        {"name": "AppScan",       "keywords": ["앱스캔", "AppScan", "HCL AppScan"]},
+        {"name": "나일소프트",     "keywords": ["나일소프트", "SecuGuard", "시큐가드"]},
+        {"name": "Xint (Theori)", "keywords": ["Xint", "테오리", "Theori", "엑스인트"]},
     ],
     "SCA": [
-        # 외산 (주요 1개 유지)
-        {"name": "Black Duck",   "keywords": ["블랙덕", "Black Duck", "BlackDuck"]},
-        # 국내
-        {"name": "래브라도랩스",  "keywords": ["래브라도랩스", "Labrador Labs", "래브라도"]},
-        {"name": "레드팬소프트",  "keywords": ["레드팬소프트", "XSCAN", "엑스스캔", "레드팬"]},
+        {"name": "Black Duck",  "keywords": ["블랙덕", "Black Duck", "BlackDuck"]},
+        {"name": "래브라도랩스", "keywords": ["래브라도랩스", "Labrador Labs", "래브라도"]},
+        {"name": "레드팬소프트", "keywords": ["레드팬소프트", "XSCAN", "엑스스캔", "레드팬"]},
     ],
 }
 
@@ -61,25 +55,75 @@ KOREAN_MEDIA_RSS = [
 ]
 
 # ────────────────────────────────────────────────────────
-# 경쟁사 공식 채널 (보도자료/뉴스룸)
+# 경쟁사 공식 채널
 # ────────────────────────────────────────────────────────
 COMPETITOR_OFFICIAL = [
-    # ── 국내 회사 공식 채널 ──
-    {"name": "트리니티소프트 공지",   "url": "https://www.trinitysoft.co.kr/board/notice",     "tag": "SAST", "company": "트리니티소프트"},
-    {"name": "나일소프트 뉴스",       "url": "https://www.nilesoft.co.kr/board/news",          "tag": "DAST", "company": "나일소프트"},
-    {"name": "Theori 블로그",         "url": "https://theori.io/ko/blog",                      "tag": "DAST", "company": "Xint (Theori)"},
-    {"name": "래브라도랩스 블로그",   "url": "https://www.labrador-labs.io/blog",              "tag": "SCA",  "company": "래브라도랩스"},
-    {"name": "레드팬소프트 뉴스",     "url": "https://www.redpensoft.com/news",                "tag": "SCA",  "company": "레드팬소프트"},
-    # ── 외산 국내 파트너 채널 (한국어 기사만 생성) ──
-    {"name": "소프트와이드시큐리티",  "url": "https://www.softwidesecu.com/board/news",        "tag": "DAST", "company": "AppScan"},
-    {"name": "KMS테크놀로지",         "url": "https://www.kms-technology.com/blog",            "tag": "SCA",  "company": "Black Duck"},
+    # ── 국내 공식 채널 ──
+    {
+        "name": "SSR 보도자료",
+        "url":  "https://www.ssrinc.co.kr/prcenter/article",
+        "tag":  "SAST",
+        "company": "SSR",
+        # 보도자료 페이지이므로 링크 패턴 없이 모든 링크 수집
+        "link_pattern": None,
+        "pr_page": True,   # 보도자료 전용 페이지 → 제목 한글 필터 완화
+    },
+    {
+        "name": "나일소프트 뉴스",
+        "url":  "https://www.nilesoft.co.kr/irpr/notice/list",
+        "tag":  "DAST",
+        "company": "나일소프트",
+        "link_pattern": None,
+        "pr_page": True,
+    },
+    {
+        "name": "래브라도랩스 블로그",
+        "url":  "https://labradorlabs.ai/news/?lang=ko",
+        "tag":  "SCA",
+        "company": "래브라도랩스",
+        "link_pattern": None,
+        "pr_page": True,
+    },
+    {
+        "name": "레드팬소프트 뉴스",
+        "url":  "https://www.redpensoft.com/news",
+        "tag":  "SCA",
+        "company": "레드팬소프트",
+        "link_pattern": None,
+        "pr_page": True,
+    },
+    # ── 외산 국내 파트너 채널 ──
+    {
+        "name": "소프트와이드시큐리티 (AppScan 파트너)",
+        "url":  "https://www.softwidesecu.com/news",
+        "tag":  "DAST",
+        "company": "AppScan",
+        "link_pattern": None,
+        "pr_page": True,
+    },
+    {
+        "name": "KMS테크놀로지 (Black Duck 파트너)",
+        "url":  "https://www.kmstech.co.kr/PR",
+        "tag":  "SCA",
+        "company": "Black Duck",
+        "link_pattern": None,
+        "pr_page": True,
+    },
 ]
 
-# 회사별 메타 정보 (이메일 표시용)
+# Theori 블로그: 정보성 글 제외용 — 회사 동향 키워드가 있어야 수집
+THEORI_PR_KEYWORDS = [
+    "출시", "런칭", "런치", "계약", "수주", "파트너", "투자", "유치", "도입",
+    "선정", "공급", "협약", "MOU", "레퍼런스", "고객", "제품", "업데이트",
+    "버전", "출원", "특허", "인증", "수상", "어워드", "채용", "IR",
+    "Xint", "엑스인트", "theori", "테오리",
+]
+
+# 회사별 메타 정보
 COMPANY_META = {
     "Fortify":        {"type": "외산", "badge": "🌐"},
     "Checkmarx":      {"type": "외산", "badge": "🌐"},
-    "트리니티소프트":  {"type": "국내", "badge": "🇰🇷"},
+    "SSR":            {"type": "국내", "badge": "🇰🇷"},
     "AppScan":        {"type": "외산", "badge": "🌐"},
     "나일소프트":      {"type": "국내", "badge": "🇰🇷"},
     "Xint (Theori)":  {"type": "국내", "badge": "🇰🇷"},
@@ -120,25 +164,27 @@ def parse_date(text: str):
                 pass
     return None
 
+def is_korean_text(text: str, min_chars: int = 5) -> bool:
+    """한글이 min_chars자 이상이면 True"""
+    return len(re.findall(r"[가-힣]", text)) >= min_chars
+
+def is_theori_pr_article(title: str, summary: str) -> bool:
+    """Theori 블로그: 회사 동향 관련 키워드가 있을 때만 True"""
+    combined = (title + " " + summary).lower()
+    return any(kw.lower() in combined for kw in THEORI_PR_KEYWORDS)
+
 
 # ────────────────────────────────────────────────────────
 # 크롤러 1: RSS + 경쟁사 키워드 필터
 # ────────────────────────────────────────────────────────
 
 def build_flat_keyword_map():
-    """{ 'keyword_lower': (category, company_name) }"""
     kmap = {}
     for cat, companies in COMPETITOR_KEYWORDS.items():
         for comp in companies:
             for kw in comp["keywords"]:
                 kmap[kw.lower()] = (cat, comp["name"])
     return kmap
-
-def is_korean_article(title: str, summary: str) -> bool:
-    """제목 또는 요약에 한글이 일정 비율 이상 포함되어 있으면 국내 기사로 판단"""
-    text = title + " " + summary
-    korean_chars = len(re.findall(r"[가-힣]", text))
-    return korean_chars >= 5  # 한글 5자 이상이면 한국어 기사
 
 def crawl_rss_media(media: dict, kmap: dict) -> list[dict]:
     items = []
@@ -155,13 +201,11 @@ def crawl_rss_media(media: dict, kmap: dict) -> list[dict]:
             summary_raw = entry.get("summary", "")
             summary = BeautifulSoup(summary_raw, "lxml").get_text()[:200]
 
-            # ★ 한국어 기사 필터: 한글이 없으면 제외
-            if not is_korean_article(title, summary):
+            # 한국어 기사 필터
+            if not is_korean_text(title + " " + summary):
                 continue
 
             combined = (title + " " + summary).lower()
-
-            # 어떤 회사/카테고리에 매칭되는지
             matched_companies = {}
             for kw, (cat, company) in kmap.items():
                 if kw in combined:
@@ -196,20 +240,42 @@ def crawl_official_page(source: dict) -> list[dict]:
         return items
     soup = BeautifulSoup(html, "lxml")
 
+    link_pattern = source.get("link_pattern")
+    is_pr_page   = source.get("pr_page", False)
+    is_theori    = source["company"] == "Xint (Theori)"
+
     seen_links = set()
-    for a in soup.find_all("a", href=True)[:80]:
+    for a in soup.find_all("a", href=True)[:100]:
         title = a.get_text(strip=True)
-        if len(title) < 10 or len(title) > 200:
+        if len(title) < 8 or len(title) > 200:
             continue
         href = a["href"]
-        # 뉴스/블로그/보도자료 링크 패턴
-        if not any(p in href.lower() for p in ["press", "news", "blog", "release", "notice", "article", "post"]):
+
+        # 링크 패턴 필터 (지정된 경우만)
+        if link_pattern and link_pattern not in href.lower():
             continue
+
+        # 보도자료 페이지가 아닌 경우: 뉴스성 링크 패턴 필요
+        if not is_pr_page:
+            if not any(p in href.lower() for p in
+                       ["press", "news", "blog", "release", "notice", "article", "post"]):
+                continue
+
         link = urljoin(source["url"], href)
-        if link in seen_links:
+        if link in seen_links or link == source["url"]:
             continue
         seen_links.add(link)
 
+        # 한글 필터 (보도자료 페이지는 완화: 2자 이상)
+        min_kr = 2 if is_pr_page else 5
+        if not is_korean_text(title, min_chars=min_kr):
+            continue
+
+        # Theori: 정보성 글 제외 → 회사 동향 키워드 필수
+        if is_theori and not is_theori_pr_article(title, ""):
+            continue
+
+        # 날짜 탐색
         pub = None
         node = a.parent
         for _ in range(4):
@@ -222,10 +288,6 @@ def crawl_official_page(source: dict) -> list[dict]:
         if pub and pub < cutoff_dt():
             continue
 
-        # ★ 국내 공식채널도 한글 제목 기사만 수집
-        if not is_korean_article(title, ""):
-            continue
-
         items.append({
             "title": title,
             "link": link,
@@ -235,6 +297,7 @@ def crawl_official_page(source: dict) -> list[dict]:
             "company": source["company"],
             "category": source["tag"],
         })
+
     return items[:15]
 
 
@@ -243,38 +306,34 @@ def crawl_official_page(source: dict) -> list[dict]:
 # ────────────────────────────────────────────────────────
 
 def collect_all() -> dict:
-    # 결과: { "SAST": { "Checkmarx": [...], "트리니티소프트": [...] }, ... }
     result = {
         cat: {comp["name"]: [] for comp in companies}
         for cat, companies in COMPETITOR_KEYWORDS.items()
     }
-
     kmap = build_flat_keyword_map()
 
-    # ── RSS 미디어 ──
+    # RSS 미디어
     print("\n[RSS 미디어] 수집 중...")
     for media in KOREAN_MEDIA_RSS:
         items = crawl_rss_media(media, kmap)
         for item in items:
-            cat = item["category"]
-            company = item["company"]
+            cat, company = item["category"], item["company"]
             if cat in result and company in result[cat]:
                 result[cat][company].append(item)
         print(f"  {media['name']}: {len(items)}건 매칭")
         time.sleep(0.3)
 
-    # ── 공식 채널 ──
+    # 공식 채널
     print("\n[공식 채널] 수집 중...")
     for source in COMPETITOR_OFFICIAL:
         items = crawl_official_page(source)
-        cat = source["tag"]
-        company = source["company"]
+        cat, company = source["tag"], source["company"]
         if cat in result and company in result[cat]:
             result[cat][company].extend(items)
         print(f"  {source['name']}: {len(items)}건")
         time.sleep(0.4)
 
-    # ── 중복 제거 & 날짜 정렬 ──
+    # 중복 제거 & 날짜 정렬
     for cat in result:
         for company in result[cat]:
             seen = set()
@@ -286,7 +345,7 @@ def collect_all() -> dict:
             deduped.sort(key=lambda x: x["published"], reverse=True)
             result[cat][company] = deduped
 
-    total = sum(len(items) for cat in result.values() for items in cat.values())
+    total = sum(len(v) for cat in result.values() for v in cat.values())
     print(f"\n✅ 총 {total}건 수집 완료")
     return result
 
@@ -304,10 +363,12 @@ CATEGORY_DESC   = {
 
 
 def build_html(data: dict) -> str:
-    today      = datetime.now().strftime("%Y년 %m월 %d일")
-    week_start = (datetime.now() - timedelta(days=7)).strftime("%m/%d")
-    week_end   = datetime.now().strftime("%m/%d")
-    total      = sum(len(items) for cat in data.values() for items in cat.values())
+    now         = datetime.now()
+    today       = now.strftime("%Y년 %m월 %d일")
+    month_label = now.strftime("%Y년 %m월")
+    month_start = (now - timedelta(days=30)).strftime("%m/%d")
+    month_end   = now.strftime("%m/%d")
+    total       = sum(len(v) for cat in data.values() for v in cat.values())
 
     categories_html = ""
     for cat, companies in data.items():
@@ -322,7 +383,7 @@ def build_html(data: dict) -> str:
             c_color = "#6366F1" if ctype == "국내" else "#64748B"
 
             if not items:
-                card_html = '<p style="font-size:12px;color:#9CA3AF;margin:8px 0 0;">이번 주 새로운 소식이 없습니다.</p>'
+                card_html = '<p style="font-size:12px;color:#9CA3AF;margin:8px 0 0;">이번 달 새로운 소식이 없습니다.</p>'
             else:
                 card_html = ""
                 for item in items[:5]:
@@ -363,7 +424,6 @@ def build_html(data: dict) -> str:
           {company_blocks}
         </div>"""
 
-    # 요약 카드
     summary_cells = "".join(f"""
       <td style="width:33%;padding:4px;">
         <div style="background:#FFF;border-radius:8px;padding:14px;text-align:center;border-top:3px solid {CATEGORY_COLORS[c]};">
@@ -382,9 +442,9 @@ def build_html(data: dict) -> str:
   <div style="background:linear-gradient(135deg,#0F172A 0%,#1E3A5F 100%);border-radius:12px;padding:28px 24px;margin-bottom:16px;text-align:center;">
     <div style="font-size:26px;margin-bottom:8px;">🦅</div>
     <h1 style="margin:0 0 4px;font-size:19px;font-weight:700;color:#FFF;">Sparrow Security Intelligence</h1>
-    <p style="margin:0 0 12px;font-size:12px;color:#93C5FD;">SAST · DAST · SCA 경쟁사 주간 동향 (🌐 외산 3 + 🇰🇷 국내 6)</p>
+    <p style="margin:0 0 12px;font-size:12px;color:#93C5FD;">SAST · DAST · SCA 경쟁사 월간 동향 (🌐 외산 3 + 🇰🇷 국내 6)</p>
     <span style="display:inline-block;background:rgba(255,255,255,0.12);border-radius:999px;padding:5px 14px;font-size:11px;color:#E2E8F0;">
-      📅 {today}&nbsp;&nbsp;|&nbsp;&nbsp;{week_start} ~ {week_end}&nbsp;&nbsp;|&nbsp;&nbsp;총 {total}건
+      📅 {month_label}&nbsp;&nbsp;|&nbsp;&nbsp;{month_start} ~ {month_end} 수집&nbsp;&nbsp;|&nbsp;&nbsp;총 {total}건
     </span>
   </div>
 
@@ -400,7 +460,7 @@ def build_html(data: dict) -> str:
   </div>
 
   <div style="text-align:center;padding:14px;color:#94A3B8;font-size:11px;">
-    Sparrow Intelligence Bot · 매주 월요일 오전 9시 (KST) 자동 발송
+    Sparrow Intelligence Bot · 매월 1일 오전 9시 (KST) 자동 발송
   </div>
 </div>
 </body></html>"""
@@ -418,7 +478,8 @@ def send_email(html_body: str):
     email_from = os.environ["EMAIL_FROM"]
     email_to   = os.environ["EMAIL_TO"]
 
-    subject = f"[Sparrow Intel] SAST/DAST/SCA 경쟁사 주간 동향 {datetime.now().strftime('%Y.%m.%d')}"
+    month_label = datetime.now().strftime("%Y년 %m월")
+    subject = f"[Sparrow Intel] SAST/DAST/SCA 경쟁사 월간 동향 {month_label}"
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"]    = email_from
