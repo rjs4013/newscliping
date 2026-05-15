@@ -1,6 +1,6 @@
 # 🦅 Sparrow Security Intelligence
 
-SAST / DAST / SCA 경쟁사 주간 동향을 자동으로 수집하여 이메일로 발송하는 GitHub Actions 봇입니다.
+SAST / DAST / SCA 경쟁사 주간·월간 동향을 자동으로 수집하여 이메일로 발송하는 GitHub Actions 봇입니다.
 
 ## 📋 수집 대상
 
