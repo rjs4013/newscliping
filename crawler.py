@@ -13,7 +13,7 @@ from email.mime.text import MIMEText
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
-DAYS_BACK    = 30
+DAYS_BACK = int(os.environ.get("DAYS_BACK", "30"))
 GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_URL   = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
@@ -64,6 +64,7 @@ CAT_CONTEXT = {
     "SCA":  "스패로우 SCA는 오픈소스 구성 분석 도구로, SBOM 생성·라이선스 관리·공급망 보안 대응을 강점으로 합니다.",
 }
 
+period_label = "주간" if DAYS_BACK <= 7 else "월간"
 
 # ────────────────────────────────────────────────────────
 # 유틸
@@ -393,7 +394,7 @@ def build_html(articles: list[dict], insights: dict) -> str:
   <div style="background:linear-gradient(135deg,#0F172A 0%,#1E3A5F 100%);border-radius:10px;padding:22px 20px;margin-bottom:12px;text-align:center;">
     <div style="font-size:22px;margin-bottom:6px;">🦅</div>
     <h1 style="margin:0 0 3px;font-size:17px;font-weight:700;color:#FFF;">Sparrow Security Intelligence</h1>
-    <p style="margin:0 0 10px;font-size:11px;color:#93C5FD;">경쟁사 · 시장 월간 동향</p>
+    <p style="margin:0 0 10px;font-size:11px;color:#93C5FD;">경쟁사 · 시장 {period_label} 동향</p>
     <span style="display:inline-block;background:rgba(255,255,255,0.12);border-radius:999px;padding:4px 12px;font-size:11px;color:#E2E8F0;">
       📅 {month_label} &nbsp;|&nbsp; {month_start}~{month_end} &nbsp;|&nbsp; 총 {total}건
     </span>
@@ -427,7 +428,7 @@ def send_email(html_body: str):
     email_to   = os.environ["EMAIL_TO"]
 
     month_label = datetime.now().strftime("%Y년 %m월")
-    subject = f"[Sparrow Intel] 경쟁사·시장 월간 동향 {month_label}"
+    subject = f"[Sparrow Intel] 경쟁사·시장 {period_label} 동향 {month_label}"
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"]    = email_from

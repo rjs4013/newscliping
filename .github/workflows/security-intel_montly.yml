@@ -1,0 +1,44 @@
+name: 🔍 Security Intelligence Monthly Report
+
+on:
+  schedule:
+    # 매월 1일 오전 10시 KST (UTC 01:00)
+    - cron: '0 1 1 * *'
+  workflow_dispatch:
+
+jobs:
+  crawl-and-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 feedparser lxml
+
+      - name: Run crawler and send email
+        env:
+          SMTP_HOST:      ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:      ${{ secrets.SMTP_PORT }}
+          SMTP_USER:      ${{ secrets.SMTP_USER }}
+          SMTP_PASS:      ${{ secrets.SMTP_PASS }}
+          EMAIL_FROM:     ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO:       ${{ secrets.EMAIL_TO }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DAYS_BACK:      "30"
+        run: python crawler.py
+
+      - name: Save report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-report-${{ github.run_number }}
+          path: report.html
+          retention-days: 90

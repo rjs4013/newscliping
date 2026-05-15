@@ -1,9 +1,9 @@
-name: 🔍 Security Intelligence Monthly Report
+name: 🔍 Security Intelligence Weekly Report
 
 on:
   schedule:
-    # 매월 1일 오전 9시 KST (UTC 00:00)
-    - cron: '0 0 1 * *'
+    # 매주 월요일 오전 9시 KST (UTC 00:00)
+    - cron: '0 0 * * 1'  # 2. 스케줄 (매주 월요일)
   workflow_dispatch:
 
 jobs:
@@ -33,11 +33,12 @@ jobs:
           EMAIL_FROM:     ${{ secrets.EMAIL_FROM }}
           EMAIL_TO:       ${{ secrets.EMAIL_TO }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DAYS_BACK:      "7"
         run: python crawler.py
 
       - name: Save report artifact
         uses: actions/upload-artifact@v4
         with:
-          name: monthly-report-${{ github.run_number }}
+          name: weekly-report-${{ github.run_number }}
           path: report.html
           retention-days: 90
