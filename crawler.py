@@ -66,6 +66,12 @@ CAT_CONTEXT = {
 
 period_label = "주간" if DAYS_BACK <= 7 else "월간"
 
+if DAYS_BACK <= 7:
+    week_num     = (datetime.now().day - 1) // 7 + 1
+    header_period = datetime.now().strftime(f"%Y년 %m월 {week_num}째 주")
+else:
+    header_period = datetime.now().strftime("%Y년 %m월")
+
 # ────────────────────────────────────────────────────────
 # 유틸
 # ────────────────────────────────────────────────────────
@@ -316,6 +322,9 @@ def build_html(articles: list[dict], insights: dict) -> str:
     month_end   = now.strftime("%m/%d")
     total       = len(articles)
 
+    range_start = (now - timedelta(days=DAYS_BACK)).strftime("%m/%d")
+    range_end   = now.strftime("%m/%d")
+
     # 카테고리 → 회사 → 기사 목록
     by_cat: dict[str, dict[str, list]] = {"SAST": {}, "DAST": {}, "SCA": {}}
     for item in articles:
@@ -396,7 +405,7 @@ def build_html(articles: list[dict], insights: dict) -> str:
     <h1 style="margin:0 0 3px;font-size:17px;font-weight:700;color:#FFF;">Sparrow Security Intelligence</h1>
     <p style="margin:0 0 10px;font-size:11px;color:#93C5FD;">경쟁사 · 시장 {period_label} 동향</p>
     <span style="display:inline-block;background:rgba(255,255,255,0.12);border-radius:999px;padding:4px 12px;font-size:11px;color:#E2E8F0;">
-      📅 {month_label} &nbsp;|&nbsp; {month_start}~{month_end} &nbsp;|&nbsp; 총 {total}건
+      📅 {header_period} &nbsp;|&nbsp; {range_start}~{range_end} &nbsp;|&nbsp; 총 {total}건
     </span>
   </div>
 
@@ -409,7 +418,7 @@ def build_html(articles: list[dict], insights: dict) -> str:
   </div>
 
   <div style="text-align:center;padding:12px;color:#94A3B8;font-size:10px;">
-    Sparrow Intelligence Bot · 매월 1일 오전 9시 자동 발송 · Google News + Gemini
+    Sparrow Intelligence Bot · 매주 월요일 / 매월 1일 자동 발송 · Google News + Gemini
   </div>
 </div>
 </body></html>"""
@@ -428,7 +437,7 @@ def send_email(html_body: str):
     email_to   = os.environ["EMAIL_TO"]
 
     month_label = datetime.now().strftime("%Y년 %m월")
-    subject = f"[Sparrow Intel] 경쟁사·시장 {period_label} 동향 {month_label}"
+    subject = f"[Sparrow Intel] 경쟁사·시장 {period_label} 동향 {header_period}"
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"]    = email_from
