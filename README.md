@@ -9,6 +9,7 @@ SAST / DAST / SCA 경쟁사 주간·월간 동향을 자동으로 수집하여 �
 | **SAST** | Checkmarx,  Fortify, 트리니티소프트 |
 | **DAST** | AppScan, 나일소프트, Xint |
 | **SCA** | BlackDuck, 래브라도랩스, 레드팬소프트 |
+| **AI** | Xint, 엑스팩AI, Mitos(Anthropic) |
 
 ## 🚀 설정 방법
 

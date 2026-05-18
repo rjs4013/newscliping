@@ -2,7 +2,7 @@
 Sparrow Security Intelligence - 경쟁사·시장 월간 동향
 흐름:
   1. Google News RSS → 수집 + 제목 유사도 중복 제거
-  2. Gemini API 3회 (SAST/DAST/SCA별 1회) → 카테고리 영업 인사이트 생성
+  2. Gemini API 3회 (SAST/DAST/SCA/AI별 1회) → 카테고리 영업 인사이트 생성
   3. 컴팩트 HTML 이메일 발송
 """
 
