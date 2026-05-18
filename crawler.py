@@ -31,8 +31,13 @@ SEARCH_QUERIES = [
     {"q": "에스에스알 OR SSR CODE-RAY 보안", "category": "SAST", "company": "SSR"},
     {"q": "AppScan OR 앱스캔 보안",          "category": "DAST", "company": "AppScan"},
     {"q": "나일소프트 OR SecuGuard",         "category": "DAST", "company": "나일소프트"},
-    {"q": "Theori OR Xint 보안",            "category": "DAST", "company": "Xint (Theori)"},
+    {"q": "Theori OR Xint Web OR 진트웹",    "category": "DAST", "company": "Xint (Theori)"},
     {"q": "Black Duck OR 블랙덕 보안",       "category": "SCA",  "company": "Black Duck"},
+    # ── AI 취약점 분석 ──
+    {"q": "Theori OR Xint Code OR 진트코드", "category": "AI",   "company": "Xint (Theori)"},
+    {"q": "두루이디에스 OR 엑스팩AI",         "category": "AI",   "company": "두루이디에스"},
+    {"q": "Claude Mitos OR 미토스 보안 취약점","category": "AI",  "company": "Mitos (Anthropic)"},
+    {"q": "AI 취약점 분석 보안 자동화",        "category": "AI",   "company": None},
     {"q": "래브라도랩스 OR Labrador Labs",   "category": "SCA",  "company": "래브라도랩스"},
     {"q": "레드팬소프트 OR XSCAN SBOM",     "category": "SCA",  "company": "레드팬소프트"},
     {"q": "SAST 정적분석 보안",              "category": "SAST", "company": None},
@@ -52,16 +57,20 @@ COMPANY_META = {
     "Xint (Theori)": {"type": "국내", "badge": "🇰🇷"},
     "Black Duck":    {"type": "외산", "badge": "🌐"},
     "래브라도랩스":   {"type": "국내", "badge": "🇰🇷"},
-    "레드팬소프트":   {"type": "국내", "badge": "🇰🇷"},
+    "레드팬소프트":       {"type": "국내", "badge": "🇰🇷"},
+    "Xint (Theori)":      {"type": "국내", "badge": "🇰🇷"},
+    "두루이디에스":        {"type": "국내", "badge": "🇰🇷"},
+    "Mitos (Anthropic)":  {"type": "외산", "badge": "🌐"},
 }
 
-CATEGORY_COLORS = {"SAST": "#3B82F6", "DAST": "#10B981", "SCA": "#F59E0B"}
-CATEGORY_DESC   = {"SAST": "정적 분석", "DAST": "동적 분석", "SCA": "공급망 / 오픈소스"}
+CATEGORY_COLORS = {"SAST": "#3B82F6", "DAST": "#10B981", "SCA": "#F59E0B", "AI": "#8B5CF6"}
+CATEGORY_DESC   = {"SAST": "정적 분석", "DAST": "동적 분석", "SCA": "공급망 / 오픈소스", "AI": "AI 기반 취약점 분석"}
 
 CAT_CONTEXT = {
     "SAST": "스패로우 SAST는 소스코드 정적 분석 도구로, 시큐어코딩 진단·CI/CD 연동·공공 및 금융 규정 대응을 강점으로 합니다.",
     "DAST": "스패로우 DAST는 웹/API 동적 취약점 진단 도구로, 운영 환경 블랙박스 점검·자동화 스캐닝을 강점으로 합니다.",
     "SCA":  "스패로우 SCA는 오픈소스 구성 분석 도구로, SBOM 생성·라이선스 관리·공급망 보안 대응을 강점으로 합니다.",
+    "AI":   "스패로우는 전통적 SAST/DAST/SCA 강점(규정 인증·국내 규정 대응·공공조달)을 보유하며, AI 취약점 분석 도구와 차별화 포인트를 발굴해야 하는 상황입니다.",
 }
 
 period_label = "주간" if DAYS_BACK <= 7 else "월간"
@@ -228,7 +237,7 @@ def generate_insights(by_cat: dict, api_key: str) -> dict:
         return insights
 
     print("\n[Gemini 인사이트] 카테고리별 분석 중...")
-    for cat in ["SAST", "DAST", "SCA"]:
+    for cat in ["SAST", "DAST", "SCA", "AI"]:
         articles = [a for items in by_cat.get(cat, {}).values() for a in items]
         if not articles:
             continue
@@ -326,7 +335,7 @@ def build_html(articles: list[dict], insights: dict) -> str:
     range_end   = now.strftime("%m/%d")
 
     # 카테고리 → 회사 → 기사 목록
-    by_cat: dict[str, dict[str, list]] = {"SAST": {}, "DAST": {}, "SCA": {}}
+    by_cat: dict[str, dict[str, list]] = {"SAST": {}, "DAST": {}, "SCA": {}, "AI": {}}
     for item in articles:
         cat  = item.get("category", "SAST")
         comp = item.get("company") or "기타"
@@ -335,13 +344,13 @@ def build_html(articles: list[dict], insights: dict) -> str:
 
     # 요약 카드
     summary_cells = "".join(f"""
-      <td style="width:33%;padding:4px;">
+      <td style="width:25%;padding:4px;">
         <div style="background:#FFF;border-radius:8px;padding:12px;text-align:center;border-top:3px solid {CATEGORY_COLORS[c]};">
           <div style="font-size:20px;font-weight:700;color:{CATEGORY_COLORS[c]};">{len([a for a in articles if a['category']==c])}</div>
           <div style="font-size:11px;color:#6B7280;font-weight:600;">{c}</div>
           <div style="font-size:10px;color:#9CA3AF;">{CATEGORY_DESC[c]}</div>
         </div>
-      </td>""" for c in ["SAST", "DAST", "SCA"])
+      </td>""" for c in ["SAST", "DAST", "SCA", "AI"])
 
     # 카테고리별 섹션
     cat_sections = ""
@@ -464,7 +473,7 @@ def main():
     articles = collect_articles()
 
     # 카테고리 → 회사 그룹 (인사이트 생성에 전달)
-    by_cat: dict[str, dict[str, list]] = {"SAST": {}, "DAST": {}, "SCA": {}}
+    by_cat: dict[str, dict[str, list]] = {"SAST": {}, "DAST": {}, "SCA": {}, "AI": {}}
     for item in articles:
         cat  = item.get("category", "SAST")
         comp = item.get("company") or "기타"
