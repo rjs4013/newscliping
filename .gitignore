@@ -1,0 +1,40 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 배포/빌드 관련
+build/
+dist/
+*.egg-info/
+*.egg
+
+# 가상환경
+venv/
+.venv/
+env/
+ENV/
+
+# 환경변수 / 민감 정보
+.env
+*.env.local
+
+# 캐시
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+
+# === IDE / 에디터 ===
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === pip 설정(선택) ===
+# pip.ini
