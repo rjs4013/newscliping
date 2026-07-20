@@ -35,7 +35,6 @@ SEARCH_QUERIES = [
     {"q": "Black Duck OR 블랙덕 보안",       "category": "SCA",  "company": "Black Duck"},
     # ── AI 취약점 분석 ──
     {"q": "Theori OR Xint Code OR 진트코드", "category": "AI",   "company": "Xint (Theori)"},
-    {"q": "두루이디에스 OR 엑스팩AI",         "category": "AI",   "company": "두루이디에스"},
     {"q": "Claude Mitos OR 미토스 보안 취약점","category": "AI",  "company": "Mitos (Anthropic)"},
     {"q": "AI 취약점 분석 보안 자동화",        "category": "AI",   "company": None},
     {"q": "래브라도랩스 OR Labrador Labs",   "category": "SCA",  "company": "래브라도랩스"},
@@ -59,7 +58,6 @@ COMPANY_META = {
     "래브라도랩스":   {"type": "국내", "badge": "🇰🇷"},
     "레드팬소프트":       {"type": "국내", "badge": "🇰🇷"},
     "Xint (Theori)":      {"type": "국내", "badge": "🇰🇷"},
-    "두루이디에스":        {"type": "국내", "badge": "🇰🇷"},
     "Mitos (Anthropic)":  {"type": "외산", "badge": "🌐"},
 }
 
